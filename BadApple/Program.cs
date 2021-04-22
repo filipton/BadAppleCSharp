@@ -12,25 +12,29 @@ namespace BadApple
 {
 	class Program
 	{
-		static List<string> AllFrames = new List<string>();
-		static string[] Chars = new string[] { "@", "#", "S", "%", "?", "*", "+", ";", ":", ",", " " };
+		public static string[] Chars = new string[] { "@", "#", "S", "%", "?", "*", "+", ";", ":", ",", " " };
+
+		public static string videoPath = @"BadApple.mp4";
+		public static int width = 80;
+		public static int height = 60;
+		public static int framesCount = 6571;
+		public static int threads = 6;
+		public static int frameRate = 30;
 
 		static void Main(string[] args)
 		{
-			string videoPath = @"D:\BadApple.mp4";
-
+			//CALCULATE SOME VALUES
 			float stepCharsSize = 255 / (Chars.Length - 1);
-			int framesCount = 6570;
-			int threads = 6;
-
-			int frameRate = 30;
 			double frameRateInterval = 1000 / (double)frameRate;
 
+			string[] videoFrames = new string[framesCount];
+
+			//SET DEFAULT WINDOW COLOLR AND SIZE
 			Console.BackgroundColor = ConsoleColor.White;
 			Console.ForegroundColor = ConsoleColor.Black;
-			Console.SetWindowSize(Console.LargestWindowWidth, Console.LargestWindowHeight);
+			Console.SetWindowSize((width * 2 ) + 1, height + 2);
 
-			Dictionary<int, string[]> tmps = new Dictionary<int, string[]>();
+			//START CONVERSION
 			Stopwatch conversionTime = new Stopwatch();
 			conversionTime.Start();
 
@@ -42,26 +46,25 @@ namespace BadApple
 				int to = (t + 1) * siz;
 				int tid = t;
 
-				Task.Run(() =>
+				new Thread(() =>
 				{
 					var ffMpeg = new NReco.VideoConverter.FFMpegConverter();
-					string[] tmp = new string[siz];
 
-					int index = 0;
-
-					for (int i = from; i < to; i++)
+					while (allFramesC != framesCount)
 					{
-						float time = (float)i / frameRate;
+						int currIndex = allFramesC++;
+
+						float time = (float)currIndex / frameRate;
 
 						MemoryStream ms = new MemoryStream();
 						ffMpeg.GetVideoThumbnail(videoPath, ms, time);
-						Bitmap bm = ResizeBitmap((Bitmap)Image.FromStream(ms), 81, 61);
+						Bitmap bm = ResizeBitmap((Bitmap)Image.FromStream(ms), width, height);
 
 						string frame = string.Empty;
 
-						for (int y = 0; y < 61; y++)
+						for (int y = 0; y < height; y++)
 						{
-							for (int x = 0; x < 81; x++)
+							for (int x = 0; x < width; x++)
 							{
 								Color color = bm.GetPixel(x, y);
 								int r = color.R;
@@ -76,63 +79,48 @@ namespace BadApple
 							frame += Environment.NewLine;
 						}
 
-						tmp[index] = frame;
-						allFramesC++;
-						index++;
+						videoFrames[currIndex] = frame;
 					}
-
-					tmps.Add(tid, tmp);
-				});
+				}).Start();
 			}
 
-			while (allFramesC != framesCount) 
+			//START PLAYING 
+			Stopwatch playbackTimer = new Stopwatch();
+			playbackTimer.Start();
+
+			var file = new AudioFileReader(videoPath);
+			var player = new WaveOutEvent();
+			player.Init(file);
+			player.Play();
+
+			int CurrentPlayingFrame = 0;
+
+			while (CurrentPlayingFrame != framesCount) 
 			{
+				if (playbackTimer.ElapsedMilliseconds % (int)frameRateInterval == 0)
+				{
+					int frameIndex = (int)Math.Floor(playbackTimer.ElapsedMilliseconds / frameRateInterval);
+					if (frameIndex >= framesCount)
+					{
+						break;
+					}
+
+					FastConsole.WriteLine(videoFrames[frameIndex]);
+					FastConsole.Flush();
+
+					CurrentPlayingFrame = frameIndex;
+				}
+
 				int percentage = allFramesC * 100 / framesCount;
 				int eta = (int)TimeSpan.FromMilliseconds(((conversionTime.ElapsedMilliseconds / (allFramesC == 0 ? 1 : allFramesC)) * (framesCount - allFramesC))).TotalSeconds;
 				int speed = (int)(allFramesC / conversionTime.Elapsed.TotalSeconds);
 
-				Console.Title = $"CONVERTING IMAGES TO TEXT... [{GetProgressBar((float)allFramesC / framesCount, 25)}] ({percentage}%) (Frame {allFramesC} of {framesCount}, eta. {eta}s) ({speed} fps)";
+				Console.Title = $"LIVE PLAY ({TimeSpan.FromSeconds((double)CurrentPlayingFrame / frameRate):mm':'ss'.'ff})... CONVERTING STATUS: {percentage}% [{GetProgressBar((float)allFramesC / framesCount, 25)}] (Frame {allFramesC} of {framesCount}, eta. {eta}s, {speed} fps)";
 			}
 
-			for(int i = 0; i < tmps.Count; i++)
-			{
-				AllFrames.AddRange(tmps[i]);
-			}
+			player.Stop();
 
-			Console.WriteLine("DONE, PRESS `ENTER` TO SHOW!");
-			if(Console.ReadKey().Key == ConsoleKey.Enter)
-			{
-				Console.Clear();
-
-				Stopwatch sw = new Stopwatch();
-				sw.Start();
-
-				var file = new AudioFileReader(videoPath);
-				var player = new WaveOutEvent();
-				player.Init(file);
-				player.Play();
-
-				bool start = true;
-				while (start)
-				{
-					if (sw.ElapsedMilliseconds % (int)frameRateInterval == 0)
-					{
-						int frameIndex = (int)Math.Floor(sw.ElapsedMilliseconds / frameRateInterval);
-						if (frameIndex >= framesCount)
-						{
-							start = false;
-							break;
-						}
-
-						FastConsole.WriteLine(AllFrames[frameIndex]);
-						FastConsole.Flush();
-					}
-				}
-
-				Console.WriteLine(sw.Elapsed);
-
-				Thread.Sleep(-1);
-			}
+			Thread.Sleep(-1);
 		}
 
 		public static Bitmap ResizeBitmap(Bitmap bmp, int width, int height)
@@ -167,6 +155,7 @@ namespace BadApple
 		}
 	}
 
+	//FROM https://stackoverflow.com/questions/5272177/console-writeline-slow
 	public static class FastConsole
 	{
 		static readonly BufferedStream str;
