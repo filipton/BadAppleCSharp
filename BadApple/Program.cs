@@ -58,13 +58,13 @@ namespace BadApple
 
 						MemoryStream ms = new MemoryStream();
 						ffMpeg.GetVideoThumbnail(videoPath, ms, time);
-						Bitmap bm = ResizeBitmap((Bitmap)Image.FromStream(ms), width, height);
+						Bitmap bm = ResizeBitmap((Bitmap)Image.FromStream(ms), width*2, height);
 
 						string frame = string.Empty;
 
 						for (int y = 0; y < height; y++)
 						{
-							for (int x = 0; x < width; x++)
+							for (int x = 0; x < width*2; x++)
 							{
 								Color color = bm.GetPixel(x, y);
 								int r = color.R;
@@ -74,7 +74,7 @@ namespace BadApple
 
 								int CIndex = (int)Math.Floor(avg / stepCharsSize);
 
-								frame += $"{Chars[CIndex]} ";
+								frame += $"{Chars[CIndex]}";
 							}
 							frame += Environment.NewLine;
 						}
