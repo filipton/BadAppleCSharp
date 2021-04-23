@@ -10,6 +10,14 @@ using System.Threading.Tasks;
 
 namespace BadApple
 {
+	enum BAState
+	{
+		LPNormalMode,
+		LPPerformanceMode,
+		PreCalculatingNormal,
+		PreCalculatingPerformance
+	}
+
 	class Program
 	{
 		public static string[] Chars = new string[] { "@", "#", "S", "%", "?", "*", "+", ";", ":", ",", " " };
@@ -26,8 +34,38 @@ namespace BadApple
 			//CALCULATE SOME VALUES
 			float stepCharsSize = 255 / (Chars.Length - 1);
 			double frameRateInterval = 1000 / (double)frameRate;
+			int aWidth = width * 2;
 
 			string[] videoFrames = new string[framesCount];
+
+			Console.WriteLine("Select Option:");
+			Console.WriteLine("1) Live Play Normal Mode");
+			Console.WriteLine("2) Live Play Performance Mode");
+			Console.WriteLine("3) Pre Calculating Normal Mode");
+			Console.WriteLine("4) Pre Calculating Performance Mode");
+
+			BAState CurrentState;
+			switch (Console.ReadLine())
+			{
+				default:
+				case "1":
+					aWidth = width * 2;
+					CurrentState = BAState.LPNormalMode;
+					break;
+				case "2":
+					aWidth = width;
+					CurrentState = BAState.LPPerformanceMode;
+					break;
+				case "3":
+					aWidth = width * 2;
+					CurrentState = BAState.PreCalculatingNormal;
+					break;
+				case "4":
+					aWidth = width;
+					CurrentState = BAState.PreCalculatingPerformance;
+					break;
+			}
+			Console.Clear();
 
 			//SET DEFAULT WINDOW COLOLR AND SIZE
 			Console.BackgroundColor = ConsoleColor.White;
@@ -58,13 +96,13 @@ namespace BadApple
 
 						MemoryStream ms = new MemoryStream();
 						ffMpeg.GetVideoThumbnail(videoPath, ms, time);
-						Bitmap bm = ResizeBitmap((Bitmap)Image.FromStream(ms), width*2, height);
+						Bitmap bm = ResizeBitmap((Bitmap)Image.FromStream(ms), aWidth, height);
 
 						string frame = string.Empty;
 
 						for (int y = 0; y < height; y++)
 						{
-							for (int x = 0; x < width*2; x++)
+							for (int x = 0; x < aWidth; x++)
 							{
 								Color color = bm.GetPixel(x, y);
 								int r = color.R;
@@ -74,7 +112,7 @@ namespace BadApple
 
 								int CIndex = (int)Math.Floor(avg / stepCharsSize);
 
-								frame += $"{Chars[CIndex]}";
+								frame += $"{Chars[CIndex]}{(CurrentState == BAState.LPPerformanceMode || CurrentState == BAState.PreCalculatingPerformance ? " " : "")}";
 							}
 							frame += Environment.NewLine;
 						}
@@ -82,6 +120,16 @@ namespace BadApple
 						videoFrames[currIndex] = frame;
 					}
 				}).Start();
+			}
+
+			//WHEN PRECALCULATIN, WAIT UNTIL LAST FRAME IS CONVERTED
+			while((CurrentState == BAState.PreCalculatingNormal || CurrentState == BAState.PreCalculatingPerformance) && allFramesC != framesCount) 
+			{
+				int percentage = allFramesC * 100 / framesCount;
+				int eta = (int)TimeSpan.FromMilliseconds(((conversionTime.ElapsedMilliseconds / (allFramesC == 0 ? 1 : allFramesC)) * (framesCount - allFramesC))).TotalSeconds;
+				int speed = (int)(allFramesC / conversionTime.Elapsed.TotalSeconds);
+
+				Console.Title = $"CONVERTING STATUS: {percentage}% [{GetProgressBar((float)allFramesC / framesCount, 25)}] (Frame {allFramesC} of {framesCount}, eta. {eta}s, {speed} fps)";
 			}
 
 			//START PLAYING 
