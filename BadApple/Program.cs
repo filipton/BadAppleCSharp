@@ -34,9 +34,24 @@ namespace BadApple
 			//CALCULATE SOME VALUES
 			float stepCharsSize = 255 / (Chars.Length - 1);
 			double frameRateInterval = 1000 / (double)frameRate;
-			int aWidth = width * 2;
+			int aWidth = 0;
 
 			string[] videoFrames = new string[framesCount];
+
+			//AUTO SET WINDOW SIZE FOR GIVEN HEIGHT
+			var StarterffMpeg = new NReco.VideoConverter.FFMpegConverter();
+			MemoryStream firstFrame = new MemoryStream();
+			StarterffMpeg.GetVideoThumbnail(videoPath, firstFrame);
+			Image firstFrameImg = Image.FromStream(firstFrame);
+			width = (int)(height * ((double)firstFrameImg.Width / firstFrameImg.Height));
+
+
+			//SET DEFAULT WINDOW COLOLR AND SIZE
+			Console.BackgroundColor = ConsoleColor.White;
+			Console.ForegroundColor = ConsoleColor.Black;
+
+			Console.SetWindowSize((width * 2) + 1, height + 2);
+
 
 			Console.WriteLine("Select Option:");
 			Console.WriteLine("1) Live Play Normal Mode");
@@ -66,11 +81,6 @@ namespace BadApple
 					break;
 			}
 			Console.Clear();
-
-			//SET DEFAULT WINDOW COLOLR AND SIZE
-			Console.BackgroundColor = ConsoleColor.White;
-			Console.ForegroundColor = ConsoleColor.Black;
-			Console.SetWindowSize((width * 2 ) + 1, height + 2);
 
 			//START CONVERSION
 			Stopwatch conversionTime = new Stopwatch();
